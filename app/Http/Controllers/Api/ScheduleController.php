@@ -2,81 +2,68 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
 use App\Models\Schedule;
 use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
-use Nette\Utils\Json;
 
 class ScheduleController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        $schedules = Schedule::all();
+        // Mengambil semua jadwal dengan data relasi (Course, Room, User)
+        $schedules = Schedule::with(['course', 'room', 'user'])->get();
         return response()->json($schedules);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(),[
-            'subject' => 'required|string|max:255',
+        $validator = Validator::make($request->all(), [
+            'course_id' => 'required|exists:courses,id',
+            'room_id' => 'required|exists:rooms,id',
             'day' => 'required|string',
             'time_start' => 'required|date_format:H:i',
-            'time_end' => 'required|date_format:H:i|after:time_start'
+            'time_end' => 'required|date_format:H:i|after:time_start',
         ]);
 
-        if($validator->fails()){
-            return response()->json($validator->errors());
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
         }
 
+        // TAMBAHAN: Mengambil ID user yang sedang login
+        $request->merge(['user_id' => auth()->id()]);
+
         $schedules = Schedule::create($request->all());
-        return response()->json($schedules, 201);
+        // Mengembalikan data lengkap dengan relasi
+        return response()->json($schedules->load(['course', 'room', 'user']), 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(Schedule $schedule)
     {
-        return response()->json($schedule);
+        return response()->json($schedule->load(['course', 'room', 'user']));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, Schedule $schedule)
     {
         $validator = Validator::make($request->all(), [
-            'subject' => 'string|max:255',
-            'day' => 'string',
-            'time_start' => 'date_format:H:i',
-            'time_end' => 'date_format:H:i|after:time_start',
-            'room' => 'nullable|string'
+            'course_id' => 'nullable|exists:courses,id',
+            'room_id' => 'nullable|exists:rooms,id',
+            'day' => 'nullable|string',
+            'time_start' => 'nullable|date_format:H:i',
+            'time_end' => 'nullable|date_format:H:i|after:time_start',
         ]);
 
-        if($validator->fails()){
+        if ($validator->fails()) {
             return response()->json($validator->errors(), 422);
         }
 
         $schedule->update($request->all());
-        return response()->json($schedule);
+        return response()->json($schedule->load(['course', 'room', 'user']));
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(Schedule $schedule)
     {
         $schedule->delete();
-        return response()->json([
-            'message' => 'Jadwal berhasil dihapus'
-        ], 200);
+        return response()->json(['message' => 'Jadwal berhasil dihapus'], 200);
     }
 }
